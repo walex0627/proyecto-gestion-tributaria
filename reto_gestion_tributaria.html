@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Tributario Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+        .animate-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .tax-event { border-left: 4px solid; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-blue-900 text-white fixed h-screen p-6 space-y-8">
+        <div class="flex items-center gap-3">
+            <img src="https://via.placeholder.com/40" alt="Logo" class="w-10">
+            <h1 class="text-xl font-bold">Euratech Pharma</h1>
+        </div>
+        
+        <nav class="space-y-2">
+            <button onclick="showSection('dashboard')" class="w-full text-left p-3 hover:bg-blue-700 rounded flex items-center gap-2">
+                <i data-lucide="layout-dashboard"></i> Dashboard
+            </button>
+            <button onclick="showSection('obligaciones')" class="w-full text-left p-3 hover:bg-blue-700 rounded flex items-center gap-2">
+                <i data-lucide="file-text"></i> Obligaciones
+            </button>
+            <button onclick="showSection('calendario')" class="w-full text-left p-3 hover:bg-blue-700 rounded flex items-center gap-2">
+                <i data-lucide="calendar"></i> Calendario
+            </button>
+            <button onclick="showSection('asistente')" class="w-full text-left p-3 hover:bg-blue-700 rounded flex items-center gap-2">
+                <i data-lucide="bot"></i> Asistente IA
+            </button>
+            <button onclick="showSection('integracion')" class="w-full text-left p-3 hover:bg-blue-700 rounded flex items-center gap-2">
+                <i data-lucide="database"></i> Integración
+            </button>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="ml-64 p-8">
+        <!-- Sección Dashboard -->
+        <div id="dashboard" class="section">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="font-bold mb-4">Cumplimiento Tributario</h3>
+                    <canvas id="complianceChart"></canvas>
+                </div>
+                <div class="col-span-2">
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="font-bold mb-4">Alertas en Tiempo Real</h3>
+                        <div id="liveAlerts" class="space-y-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sección Obligaciones -->
+        <div id="obligaciones" class="section hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-bold mb-4">Gestión Documental</h2>
+                    <div class="mb-4">
+                        <input type="file" id="taxDocument" class="mb-2" accept=".pdf,.xml,.csv">
+                        <button onclick="uploadDocument()" class="bg-blue-600 text-white px-4 py-2 rounded">
+                            <i data-lucide="upload"></i> Subir Documento
+                        </button>
+                    </div>
+                    <div id="documentsList" class="space-y-2"></div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4">Validación DIAN</h3>
+                    <div id="validationStatus"></div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Sección Calendario Mejorada -->
+<div id="calendario" class="section hidden">
+  <div class="bg-white p-6 rounded-xl shadow-lg">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold" id="monthYear"></h2>
+      <div class="space-x-2">
+        <button onclick="previousMonth()" class="p-2 hover:bg-gray-100 rounded">←</button>
+        <button onclick="nextMonth()" class="p-2 hover:bg-gray-100 rounded">→</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-7 gap-2 text-center font-semibold mb-2">
+      <div>Dom</div><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div>
+    </div>
+    <div class="grid grid-cols-7 gap-2" id="taxCalendar"></div>
+  </div>
+</div>
+
+<!-- Modal para Notas -->
+<div id="noteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+  <div class="bg-white p-6 rounded-xl w-96">
+    <h3 class="text-lg font-bold mb-4" id="modalDate"></h3>
+    <textarea id="noteInput" class="w-full p-2 border rounded mb-4" rows="4"></textarea>
+    <div class="flex justify-between">
+      <button onclick="deleteNote()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Eliminar</button>
+      <div>
+        <button onclick="closeModal()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 mr-2">Cancelar</button>
+        <button onclick="saveNote()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Notificaciones -->
+<div id="notifications" class="fixed bottom-4 right-4 bg-white p-4 rounded-xl shadow-lg max-w-xs hidden">
+  <h3 class="font-bold mb-2">Próximos vencimientos</h3>
+  <div id="notificationList"></div>
+</div>
+
+<script>
+let currentDate = new Date();
+let selectedDate = null;
+
+// Formatear fecha a YYYY-MM-DD
+function formatDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// Cargar notas desde localStorage
+function getNotes() {
+  return JSON.parse(localStorage.getItem('taxNotes') || '{}');
+}
+
+// Guardar notas en localStorage
+function saveNotes(notes) {
+  localStorage.setItem('taxNotes', JSON.stringify(notes));
+}
+
+// Generar calendario
+function generarCalendario() {
+  const calendarContainer = document.getElementById('taxCalendar');
+  const monthYearElement = document.getElementById('monthYear');
+  const notes = getNotes();
+  
+  calendarContainer.innerHTML = '';
+  const primerDia = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  const diasEnMes = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  
+  // Mostrar mes y año actual
+  monthYearElement.textContent = new Date(currentDate).toLocaleDateString('es-ES', {
+    month: 'long',
+    year: 'numeric'
+  }).toUpperCase();
+
+  // Días vacíos iniciales
+  for (let i = 0; i < primerDia; i++) {
+    calendarContainer.innerHTML += `<div></div>`;
+  }
+
+  // Generar días del mes
+  for (let dia = 1; dia <= diasEnMes; dia++) {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), dia);
+    const idDia = formatDate(date);
+    const today = formatDate(new Date());
+    
+    const dayElement = document.createElement('div');
+    dayElement.className = `border p-2 rounded-lg hover:bg-blue-100 cursor-pointer relative ${idDia === today ? 'bg-blue-50' : ''}`;
+    dayElement.innerHTML = `
+      <span class="font-medium">${dia}</span>
+      <div id="nota-${idDia}" class="text-xs text-gray-600 mt-1"></div>
+    `;
+    dayElement.onclick = () => openModal(date);
+    
+    if (notes[idDia]) {
+      dayElement.querySelector(`#nota-${idDia}`).textContent = notes[idDia];
+    }
+    calendarContainer.appendChild(dayElement);
+  }
+  
+  checkNotifications();
+}
+
+// Manejo del modal
+function openModal(date) {
+  selectedDate = date;
+  const modal = document.getElementById('noteModal');
+  const notes = getNotes();
+  
+  document.getElementById('modalDate').textContent = date.toLocaleDateString('es-ES');
+  document.getElementById('noteInput').value = notes[formatDate(date)] || '';
+  modal.classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('noteModal').classList.add('hidden');
+}
+
+function saveNote() {
+  const notes = getNotes();
+  notes[formatDate(selectedDate)] = document.getElementById('noteInput').value.trim();
+  saveNotes(notes);
+  closeModal();
+  generarCalendario();
+}
+
+function deleteNote() {
+  const notes = getNotes();
+  delete notes[formatDate(selectedDate)];
+  saveNotes(notes);
+  closeModal();
+  generarCalendario();
+}
+
+// Navegación entre meses
+function previousMonth() {
+  currentDate.setMonth(currentDate.getMonth() - 1);
+  generarCalendario();
+}
+
+function nextMonth() {
+  currentDate.setMonth(currentDate.getMonth() + 1);
+  generarCalendario();
+}
+
+// Notificaciones
+function checkNotifications() {
+  const notes = getNotes();
+  const notificationList = document.getElementById('notificationList');
+  const now = new Date();
+  let hasNotifications = false;
+  
+  notificationList.innerHTML = '';
+  
+  Object.keys(notes).forEach(dateStr => {
+    const [year, month, day] = dateStr.split('-');
+    const noteDate = new Date(year, month - 1, day);
+    const diffDays = Math.ceil((noteDate - now) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays >= 0 && diffDays <= 3) {
+      hasNotifications = true;
+      notificationList.innerHTML += `
+        <div class="mb-2">
+          <div class="font-medium">${noteDate.toLocaleDateString('es-ES')}</div>
+          <div class="text-sm">${notes[dateStr]}</div>
+        </div>
+      `;
+    }
+  });
+  
+  const notificationsElement = document.getElementById('notifications');
+  notificationsElement.classList.toggle('hidden', !hasNotifications);
+}
+
+// Verificar notificaciones cada hora
+setInterval(checkNotifications, 3600000);
+
+// Inicializar al cargar
+document.addEventListener("DOMContentLoaded", () => {
+  generarCalendario();
+  // Mostrar notificaciones automáticamente al cargar
+  setTimeout(() => {
+    document.getElementById('notifications').classList.remove('hidden');
+  }, 2000);
+});
+</script>
+        <!-- Sección Asistente IA -->
+        <div id="asistente" class="section hidden">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex items-center gap-3 mb-4">
+                    <i data-lucide="bot" class="w-8 h-8 text-blue-600"></i>
+                    <h2 class="text-2xl font-bold">Asistente Tributario IA</h2>
+                </div>
+                <div id="chatContainer" class="h-96 overflow-y-auto mb-4 bg-gray-50 p-4 rounded-lg"></div>
+                <div class="flex gap-2">
+                    <input id="userInput" type="text" class="flex-1 p-2 border rounded" placeholder="Escribe tu pregunta...">
+                    <button onclick="sendQuestion()" class="bg-blue-600 text-white px-4 py-2 rounded">
+                        <i data-lucide="send"></i> Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sección Integración -->
+        <div id="integracion" class="section hidden">
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-4">Integración Contable</h2>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer" onclick="connectSoftware('siigo')">
+                        <img src="https://via.placeholder.com/100x40?text=Siigo" alt="Siigo" class="mb-2">
+                        <p class="text-sm text-gray-600">Conexión en tiempo real con Siigo</p>
+                    </div>
+                    <div class="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer" onclick="connectSoftware('sap')">
+                        <img src="https://via.placeholder.com/100x40?text=SAP" alt="SAP" class="mb-2">
+                        <p class="text-sm text-gray-600">Integración con SAP Business One</p>
+                    </div>
+                    <div class="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer" onclick="connectSoftware('alegra')">
+                        <img src="https://via.placeholder.com/100x40?text=Alegra" alt="Alegra" class="mb-2">
+                        <p class="text-sm text-gray-600">Sincronización con Alegra</p>
+                    </div>
+                </div>
+                <div id="accountingData" class="mt-6"></div>
+            </div>
+        </div>
+    </main>
+
+<script>
+// Configuración inicial
+let currentUser = {
+    name: "Juan Pérez",
+    company: "Euratech Pharma Ltda.",
+    taxRegime: "Régimen Ordinario"
+};
+
+let documents = [];
+let calendarEvents = [];
+let chatHistory = [];
+
+// Inicializar componentes
+function init() {
+    lucide.createIcons();
+    initCharts();
+    generateCalendar();
+    loadDocuments();
+    setInterval(checkDeadlines, 60000);
+    simulateRealTimeData();
+}
+
+// Navegación
+function showSection(sectionId) {
+    document.querySelectorAll('.section').forEach(el => el.classList.add('hidden'));
+    document.getElementById(sectionId).classList.remove('hidden');
+}
+
+// Sistema de Documentos
+function uploadDocument() {
+    const fileInput = document.getElementById('taxDocument');
+    const file = fileInput.files[0];
+    
+    if(file) {
+        const newDoc = {
+            id: Date.now(),
+            name: file.name,
+            type: file.type,
+            status: 'En revisión',
+            uploaded: new Date()
+        };
+        
+        documents.push(newDoc);
+        saveDocuments();
+        validateDocument(newDoc);
+        showAlert(`Documento ${file.name} subido correctamente`, 'success');
+    }
+}
+
+function validateDocument(doc) {
+    setTimeout(() => {
+        doc.status = Math.random() > 0.2 ? 'Aprobado' : 'Corregir';
+        doc.validationDate = new Date();
+        saveDocuments();
+        showAlert(`Validación DIAN completada: ${doc.name}`, doc.status === 'Aprobado' ? 'success' : 'error');
+    }, 3000);
+}
+
+// Sistema de Alertas
+function showAlert(message, type = 'info') {
+    const alert = document.createElement('div');
+    alert.className = `p-3 rounded-lg ${type === 'error' ? 'bg-red-100 text-red-800' : 
+                       type === 'success' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`;
+    alert.innerHTML = `
+        <div class="flex items-center gap-2">
+            <i data-lucide="${type === 'error' ? 'alert-triangle' : 'info'}"></i>
+            ${message}
+        </div>
+    `;
+    document.getElementById('liveAlerts').prepend(alert);
+    lucide.createIcons();
+}
+
+// Calendario Tributario
+function generateCalendar() {
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+    const calendar = document.getElementById('taxCalendar');
+    
+    for(let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(today.getFullYear(), today.getMonth(), day);
+        const isDeadline = day % 5 === 0; // Simular fechas límite
+        
+        const dayElement = document.createElement('div');
+        dayElement.className = `p-2 text-center border rounded-lg ${
+            isDeadline ? 'bg-red-50 border-red-200 tax-event' : 'bg-white'
+        }`;
+        dayElement.innerHTML = `
+            <div class="text-sm font-medium">${day}</div>
+            ${isDeadline ? '<div class="text-xs text-red-600">Vencimiento IVA</div>' : ''}
+        `;
+        calendar.appendChild(dayElement);
+    }
+}
+
+// Asistente IA
+async function sendQuestion() {
+    const input = document.getElementById('userInput');
+    const question = input.value.trim();
+    
+    if(question) {
+        addChatMessage(question, 'user');
+        const response = await processQuestion(question);
+        addChatMessage(response, 'bot');
+        input.value = '';
+    }
+}
+
+async function processQuestion(question) {
+    // Simular integración con API de IA
+    const responses = {
+        'iva': 'La declaración de IVA debe presentarse antes del día 15 de cada mes.',
+        'retenciones': 'El porcentaje de retención en la fuente varía según la actividad económica.',
+        'dian': 'Puedes consultar el portal DIAN https://www.dian.gov.co para más información.'
+    };
+    
+    const lowerQuestion = question.toLowerCase();
+    return responses[
+        lowerQuestion.includes('iva') ? 'iva' :
+        lowerQuestion.includes('retención') ? 'retenciones' :
+        lowerQuestion.includes('dian') ? 'dian' : 'default'
+    ] || 'Como asistente tributario, recomiendo verificar la Resolución DIAN 0001 de 2023 para más detalles.';
+}
+
+// Sistema de Integración
+async function connectSoftware(software) {
+    showAlert(`Conectando con ${software.toUpperCase()}...`, 'info');
+    setTimeout(() => {
+        document.getElementById('accountingData').innerHTML = `
+            <div class="mt-4 p-4 bg-green-50 rounded-lg">
+                <h4 class="font-bold mb-2">Conexión exitosa con ${software.toUpperCase()}</h4>
+                <p class="text-sm">Última sincronización: ${new Date().toLocaleString()}</p>
+                <div class="mt-2 space-y-1">
+                    <div class="flex justify-between">
+                        <span>Movimientos sincronizados:</span>
+                        <span>1,452</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Transacciones fiscales:</span>
+                        <span>234</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }, 2000);
+}
+
+// Utilidades
+function initCharts() {
+    new Chart(document.getElementById('complianceChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Cumplidas', 'Pendientes'],
+            datasets: [{
+                data: [85, 15],
+                backgroundColor: ['#10b981', '#ef4444']
+            }]
+        }
+    });
+}
+
+function addChatMessage(text, sender) {
+    const chat = document.getElementById('chatContainer');
+    const message = document.createElement('div');
+    message.className = `mb-3 p-3 rounded-lg ${sender === 'user' ? 'ml-auto bg-blue-100' : 'bg-white border'}`;
+    message.innerHTML = text;
+    chat.appendChild(message);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+// Inicializar
+init();
+</script>
+</body>
+</html>
